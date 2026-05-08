@@ -1,0 +1,736 @@
+
+console.log("JS läuft!");
+
+// 🔊 UNIVERSAL SOUND FUNCTION
+function playSound(id){
+  const s = document.getElementById(id);
+  if(s){
+    s.currentTime = 0;
+    s.play();
+  }
+}
+
+function formatZeit(sekunden){
+
+
+  let min = Math.floor(sekunden / 60);
+  let sec = sekunden % 60;
+
+  // führende Null für Sekunden
+  if(sec < 10) sec = "0" + sec;
+
+  return min + ":" + sec;
+}
+
+// 🔙 BACK BUTTON
+document.getElementById("backBtn").onclick = function(){
+
+
+  clearInterval(timerID);
+  clearInterval(gesamtTimerID);
+  gesamtTimerLaeuft = false;
+
+  document.getElementById("overlay").style.display = "none";
+  document.getElementById("timeOverPopup").style.display = "none";
+  document.getElementById("top10Popup").style.display = "none";
+  document.getElementById("feedback").innerText = "";
+
+  addHighscore(playerName, punkte);
+
+  punkte = 0;
+  aktuelleFrage = 0;
+  leben = 3;
+  combo = 0;
+
+  document.getElementById("punkte").innerText = 0;
+  document.getElementById("gesamtzeit").innerText = formatZeit(0);
+
+  updateLebenAnzeige();
+  updateComboAnzeige();
+
+  document.getElementById("gameArea").style.display = "none";
+  document.getElementById("status").style.display = "none";
+  document.getElementById("startScreen").style.display = "flex";
+};
+
+// --- Theme ---
+
+document.getElementById("pauseBtn").onclick = function(){
+
+
+
+  if(!isPaused){
+    // ⏸ Pause
+    isPaused = true;
+
+    clearInterval(timerID);
+
+    punkte = Math.max(0, punkte - 1);
+    document.getElementById("punkte").innerText = punkte;
+
+    document.getElementById("feedback").innerText = "⏸ Pause (-1 Punkt)";
+
+    document.getElementById("overlay").style.display = "block"; // 🌑 NEU
+
+    this.innerText = "▶";
+
+  } else {
+    // ▶ Weiter
+    isPaused = false;
+
+    startTimer();
+
+    document.getElementById("feedback").innerText = "";
+
+    document.getElementById("overlay").style.display = "none"; // 🌑 NEU
+
+    this.innerText = "⏸";
+  }
+
+};
+document.getElementById("themeSelector").addEventListener("change", e=>{document.body.className=e.target.value;});
+
+// --- Shuffle ---
+function shuffleArray(array){ for(let i=array.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [array[i],array[j]]=[array[j],array[i]];}}
+
+// --- Verben ---
+let level2=[
+
+["der","Abend"],["die","Angst"],["die","Antwort"],["die","Arbeit"],["die","Art"],["der","Arzt"],["der","Augenblick"],["das","Auto"],
+["der","Baum"],["das","Beispiel"],["der","Berg"],["das","Bild"],["die","Blume"],["der","Boden"],["der","Brief"],["das","Buch"],
+["der","Bus"],["der","Computer"],["das","Ding"],["der","Durst"],["die","Eltern"],["der","Fall"],["die","Familie"],["das","Fenster"],
+["das","Feuer"],["der","Flughafen"],["der","Fluss"],["die","Frage"],["die","Frau"],["die","Freude"],["der","Freund"],["der","Gedanke"],
+["das","Geld"],["die","Geschichte"],["das","Gesicht"],["das","Gras"],["der","Grund"],["die","Gruppe"],["die","Hand"],["das","Handy"],
+["das","Haus"],["der","Herr"],["das","Herz"],["der","Himmel"],["die","Hoffnung"],["der","Hund"],["der","Hunger"],["die","Insel"],
+["das","Jahr"],["das","Kind"],["der","Kopf"],["der","Krieg"],["das","Land"],["das","Leben"],["der","Lehrer"],["das","Licht"],
+["die","Liebe"],["die","Luft"],["das","Mädchen"],["der","Mann"],["das","Meer"],["der","Mensch"],["die","Minute"],["der","Mond"],
+["der","Morgen"],["die","Mutter"],["die","Nacht"],["der","Name"],["das","Problem"],["der","Raum"],["das","Recht"],["der","Regen"],
+["der","Schnee"],["die","Schule"],["der","Schüler"],["die","Seite"],["der","Sinn"],["die","Sonne"],["die","Stadt"],["der","Stein"],
+["der","Stern"],["die","Stimme"],["die","Straße"],["die","Stunde"],["der","Tag"],["der (share)/das (part)","Teil"],["der","Tisch"],
+["der","Traum"],["die","Tür"],["der","Vater"],["das","Volk"],["das","Wasser"],["der","Weg"],["die","Welt"],["der","Wind"],
+["die","Woche"],["das","Wort"],["der","Wunsch"],["die","Zeit"],["der","Zug"]
+];
+
+let vokabeln = level2.map(v => ({
+  artikel: v[0],
+  wort: v[1],
+  weight: 1
+}));
+
+
+
+let aktuelleVokabel = null;
+
+// --- Spielvariablen ---
+let punkte=0, aktuelleFrage=0, zeit=10, timerID, leben=3, playerName="";
+let combo = 0;
+let highscoreSchonVerarbeitet = false; // 🔥 NEU
+let aktuellerModus = 60; // 🔥 NEU
+let isPaused = false;
+let gesamtSpielZeit=60, gesamtSekunden=gesamtSpielZeit, gesamtTimerID;
+let gesamtTimerLaeuft = false;
+
+// --- Highscore ---
+function getHighscores(){ 
+  return JSON.parse(localStorage.getItem("vokabelHighscores_"+aktuellerModus)||"[]"); 
+}
+
+function getNaechsteVokabel(){
+
+  let pool = vokabeln.filter(v => v !== aktuelleVokabel);
+
+  let totalWeight = pool.reduce((sum,v)=>sum+v.weight,0);
+  let rnd = Math.random() * totalWeight;
+
+  for(let v of pool){
+    rnd -= v.weight;
+    if(rnd <= 0){
+      return v;
+    }
+  }
+
+  return pool[0];
+}
+
+function saveHighscores(hs){ 
+  localStorage.setItem("vokabelHighscores_"+aktuellerModus, JSON.stringify(hs)); 
+}
+
+
+function updateAllHighscores(){
+  let hs = getHighscores();
+  hs.sort((a,b)=>b.punkte-a.punkte);
+
+let zeitText = {
+  60: "1 Minute",
+  180: "3 Minuten",
+300: "5 Minuten",
+  600: "10 Minuten",
+  1020: "17 Minuten"
+};
+
+
+let html = `
+  <div class='highscore-title'>🏆 Highscore</div>
+  <div class='highscore-subtitle'>(${zeitText[aktuellerModus]})</div>
+`;
+
+
+hs.slice(0,10).forEach((e,i)=>{
+    let klasse = "";
+
+    if(i === 0) klasse = "gold";
+    else if(i === 1) klasse = "silver";
+    else if(i === 2) klasse = "bronze";
+
+    if(e.name === playerName) klasse += " me";
+
+    let medal = ["🥇","🥈","🥉"][i] || "";
+
+    let medalHTML = "";
+    if(i < 3){
+      medalHTML = `<div class="medal-circle">${medal}</div>`;
+    }
+
+    html += `
+      <div class="highscore-item ${klasse}">
+        
+        <div class="highscore-row">
+          ${medalHTML}
+          <div class="highscore-name">${i+1}. ${e.name}</div>
+        </div>
+
+        <div class="highscore-points">${e.punkte} Punkte</div>
+
+      </div>
+    `;
+  });
+
+  document.getElementById("highscoreList2").innerHTML = html;
+}
+
+// --- Popups ---
+function showTop10Popup(name,punkte,rang){
+  const popup=document.getElementById("top10Popup");
+  popup.innerHTML=`🎉 Glückwunsch ${name}! <br> Rang ${rang} in den Top 10! <br> Punkte: ${punkte}`;
+  popup.style.display="block";
+  setTimeout(()=>{popup.style.display="none";},5000);
+}
+
+// --- Start ---
+document.getElementById("startBtn").onclick=function(){
+highscoreSchonVerarbeitet = false; // 🔥 RESET
+
+// 🔥 Reset beim Start
+document.getElementById("overlay").style.display = "none";
+document.getElementById("timeOverPopup").style.display = "none";
+document.getElementById("top10Popup").style.display = "none";
+combo = 0;
+updateComboAnzeige();
+document.getElementById("gameArea").style.display = "flex";
+document.getElementById("pauseBtn").style.display = "inline-block";
+document.getElementById("gameTitle").innerText = "Vokabelspiel MA 🎮";
+document.getElementById("highscoresContainer").style.display = "block";
+document.getElementById("timerBarContainer").style.display = "block";
+document.getElementById("progressContainer").style.display = "block";
+
+  playerName=document.getElementById("playerName").value.trim()||"Spieler";
+gesamtSpielZeit=parseInt(document.getElementById("timeSelector").value);
+aktuellerModus = gesamtSpielZeit; // 🔥 NEU
+gesamtSekunden = gesamtSpielZeit;
+document.getElementById("gesamtzeit").innerText = formatZeit(gesamtSekunden);
+  shuffleArray(level2);
+  document.getElementById("startScreen").style.display="none";
+  document.getElementById("status").style.display="flex";
+  updateLebenAnzeige(); updateAllHighscores(); startGesamtTimer(); starteFrage();
+}
+
+// --- Timer ---
+function updateTimerBar(){document.getElementById("timerBar").style.width=(zeit/10*100)+"%";}
+
+
+function startTimer(){ 
+  if(isPaused) return;
+
+  clearInterval(timerID);
+
+  timerID=setInterval(()=>{
+    zeit-=0.1;
+    if(zeit<0) zeit=0;
+    updateTimerBar();
+
+if(zeit <= 0){      clearInterval(timerID); 
+      zeitAbgelaufen(); 
+    }
+  },100);
+}
+
+// --- Popups und Antworten ---
+
+
+function zeitAbgelaufen(){
+
+if(aktuelleVokabel){
+  aktuelleVokabel.weight += 2;
+}
+if(gesamtSekunden <= 0) return;
+const correct = aktuelleVokabel.artikel;
+
+
+  document.getElementById("overlay").style.display="block";
+  const popup=document.getElementById("timeOverPopup");
+  popup.innerHTML=`⏰ Zeit abgelaufen!<br>Richtige Antwort: <span class="correct-answer-highlight">${correct}</span>`;
+  popup.style.display="block";
+
+setTimeout(()=>{
+  document.getElementById("overlay").style.display="none";
+  popup.style.display="none";
+
+  leben--;
+  updateLebenAnzeige();
+combo = 0;
+updateComboAnzeige();
+
+  if(leben <= 0){
+    spielZurücksetzen();
+  } else {
+    nächsteFrage();
+  }
+
+},1600);
+
+}
+
+document.getElementById("richtig").volume=0.3;
+document.getElementById("falsch").volume = 0.3;
+
+function updateLebenAnzeige(){ let str=""; for(let i=0;i<leben;i++) str+="❤️"; document.getElementById("leben").innerHTML=str; }
+
+function updateComboAnzeige(){
+  const el = document.getElementById("comboBox");
+
+  el.innerText = "🔥 Combo x" + combo;
+
+  // 🔥 Pulse-Effekt
+  el.classList.remove("combo-fire");
+  void el.offsetWidth;
+  el.classList.add("combo-fire");
+
+  // 🔥 HOT MODE ab Combo 5
+  if(combo >= 5){
+    el.classList.add("combo-hot");
+  } else {
+    el.classList.remove("combo-hot");
+  }
+}
+
+
+function startGesamtTimer(){ 
+
+  if(gesamtTimerLaeuft) return; // ❗ verhindert doppelten Timer
+
+  gesamtTimerLaeuft = true;
+
+  gesamtTimerID = setInterval(()=>{
+    if(isPaused) return; // ❗ friert Zeit ein
+
+gesamtSekunden--; 
+document.getElementById("gesamtzeit").innerText = formatZeit(gesamtSekunden)
+
+if(gesamtSekunden <= 0){
+
+clearInterval(timerID);   // 🔥 STOPPT Frage-Timer!
+      clearInterval(gesamtTimerID);
+      gesamtTimerLaeuft = false;
+
+      document.getElementById("overlay").style.display="block";
+      const popup=document.getElementById("timeOverPopup");
+      popup.innerHTML=`⏰ Gesamtzeit abgelaufen!<br>Punkte: ${punkte}`;
+      popup.style.display="block";
+
+    setTimeout(()=>{
+
+  // ✅ ALLE POPUPS sauber schließen
+  document.getElementById("overlay").style.display = "none";
+  document.getElementById("timeOverPopup").style.display = "none";
+  document.getElementById("top10Popup").style.display = "none";
+  document.getElementById("feedback").innerText = "";
+
+  addHighscore(playerName,punkte);
+
+        punkte=0; 
+        aktuelleFrage=0; 
+        leben=3; 
+gesamtSekunden = gesamtSpielZeit;
+        document.getElementById("punkte").innerText=0; 
+document.getElementById("gesamtzeit").innerText = formatZeit(gesamtSekunden)
+        updateLebenAnzeige(); 
+// 👉 Spiel ausblenden + zurück zum Start
+document.getElementById("gameArea").style.display = "none";
+document.getElementById("status").style.display = "none";
+document.getElementById("startScreen").style.display = "flex";
+  
+
+      },4000);
+    }
+
+  },1000);
+}
+
+// --- Highscore Funktionen ---
+function addHighscore(name,punkte){
+  let hs=getHighscores();
+  hs.push({name,punkte}); hs.sort((a,b)=>b.punkte-a.punkte);
+  if(hs.length>10) hs=hs.slice(0,10);
+  saveHighscores(hs); updateAllHighscores();
+
+
+
+let rang = hs.findIndex(e => e.name === name && e.punkte === punkte) + 1;
+
+// 👉 NUR Top 3 reagieren
+if(rang > 0 && rang <= 3){
+
+  // ❗ nur einmal pro Spiel
+  if(highscoreSchonVerarbeitet) return;
+  highscoreSchonVerarbeitet = true;
+
+  // 🥇 Platz 1
+  if(rang === 1){
+
+    jubelChoreo();
+
+    document.getElementById("feedback").innerText = "👑 PLATZ 1!!!";
+
+    const game = document.getElementById("gameArea");
+    game.classList.add("flash");
+
+    setTimeout(()=>{
+      game.classList.remove("flash");
+    },500);
+
+  }
+
+  // 🥈🥉 Platz 2–3
+  else {
+
+    jubelChoreo();
+
+    document.getElementById("feedback").innerText = "🏆 TOP 3!";
+  }
+}
+
+// 👉 Top 10 Popup bleibt IMMER
+if(rang > 0 && rang <= 10){
+  showTop10Popup(name, punkte, rang);
+}
+
+
+
+}
+
+// --- Spiel zurücksetzen ---
+function spielZurücksetzen(){
+
+// ✅ EINMAL reicht komplett
+document.getElementById("overlay").style.display = "none";
+document.getElementById("timeOverPopup").style.display = "none";
+document.getElementById("top10Popup").style.display = "none";
+document.getElementById("feedback").innerText = "";
+
+clearInterval(gesamtTimerID);
+
+addHighscore(playerName,punkte); 
+
+
+
+  punkte=0; 
+  aktuelleFrage=0; 
+  leben=3; 
+
+  document.getElementById("punkte").innerText=punkte; 
+document.getElementById("gesamtzeit").innerText = formatZeit(0);
+  updateLebenAnzeige();
+document.getElementById("gameArea").style.display = "none";
+document.getElementById("status").style.display = "none";
+document.getElementById("startScreen").style.display = "flex";
+
+}
+
+// --- Frage ---
+function starteFrage(){
+  clearInterval(timerID);
+
+  zeit = 10; // ✅ NEU
+
+  document.getElementById("feedback").innerText="";
+  document.getElementById("antworten").innerHTML="";
+  updateProgress();
+
+  if(aktuelleFrage>=level2.length) aktuelleFrage=0;
+
+const w = getNaechsteVokabel();
+aktuelleVokabel = w;
+document.getElementById("wort").innerHTML = `
+<div class="wort-box">${w.wort}</div>`;
+
+
+
+  // 👉 Richtige + falsche Antworten erzeugen
+let antworten = ["der","die","das"];
+
+if(w.wort === "Teil"){
+  antworten = ["der (share)/das (part)","die","das"];
+}
+
+shuffleArray(antworten);
+
+
+  antworten.forEach(a=>{
+    const btn = document.createElement("button");
+    btn.innerText = a;
+  // 🔥 HIER EINFÜGEN
+  if(a==="der") btn.classList.add("btn-der");
+  else if(a==="die") btn.classList.add("btn-die");
+  else if(a==="das") btn.classList.add("btn-das");
+  else btn.classList.add("btn-special");
+
+btn.onclick = ()=>checkAntwort(a, w.artikel);
+    document.getElementById("antworten").appendChild(btn);
+  });
+
+  startTimer();
+}
+
+
+
+// --- Antwort prüfen ---
+function checkAntwort(eingabe,richtig){
+  if(isPaused) return; // ❗ NEU
+
+  clearInterval(timerID);
+  if(eingabe===richtig) richtigAntwort();
+  else falschAntwort(richtig);
+}
+
+function richtigAntwort(){
+if(aktuelleVokabel){
+  aktuelleVokabel.weight = Math.max(1, aktuelleVokabel.weight - 1);
+}
+
+  let bonus = 0;
+
+  if(zeit > 7) bonus = 3;
+  else if(zeit > 4) bonus = 2;
+  else if(zeit > 2) bonus = 1;
+
+  combo++;
+  updateComboAnzeige();
+
+  let comboBonus = Math.floor(combo / 3);
+
+  let megaMode = combo >= 10;
+
+  let gesamt = 1 + bonus + comboBonus;
+
+  if(megaMode){
+    gesamt += 5; // 💥 Extra Punkte erst ab 10
+  }
+
+  punkte += gesamt;
+
+  document.getElementById("punkte").innerText = punkte;
+
+  let text = `Richtig! 🎉 +${gesamt} (⚡${bonus} 🔥${comboBonus})`;
+
+  if(megaMode){
+    text += " 💥 MEGA MODE!!!";
+  }
+
+  document.getElementById("feedback").innerText = text;
+
+
+
+// 🌋 SHAKE nur im Mega Mode
+if(megaMode){
+  const game = document.getElementById("gameArea");
+
+  game.classList.add("shake");
+  game.classList.add("flash");
+
+  setTimeout(()=>{
+    game.classList.remove("shake");
+    game.classList.remove("flash");
+  },400);
+}
+
+
+  nächsteFrage();
+}
+
+
+
+
+
+
+function falschAntwort(richtig){
+if(aktuelleVokabel){
+  aktuelleVokabel.weight += 3;
+}
+combo = 0;
+updateComboAnzeige();
+  leben--; 
+
+
+updateLebenAnzeige(); 
+  const popup=document.getElementById("timeOverPopup");
+  document.getElementById("overlay").style.display="block";
+
+popup.innerHTML=`
+<div class="error-icon">✖</div>
+<span class="correct-answer-highlight">${richtig}</span>
+`;
+
+popup.style.display="block";
+
+
+playSound("falsch");
+
+
+
+  setTimeout(()=>{
+    document.getElementById("overlay").style.display="none"; popup.style.display="none";
+    if(leben<=0) spielZurücksetzen(); else nächsteFrage();
+  },1000);
+}
+
+
+function nächsteFrage(){aktuelleFrage++; starteFrage();}
+function updateProgress(){ 
+  const total = level2.length;
+  const current = aktuelleFrage + 1;
+
+  const pr = (current / total) * 100;
+  document.getElementById("progressBar").style.width = pr + "%";
+
+  const el = document.getElementById("fortschrittText");
+
+  let remaining = total - current;
+
+  // 👉 Text
+  if(remaining <= 5){
+    el.innerText = "🔥 FAST FERTIG! " + current + " / " + total;
+  } else {
+    el.innerText = "📚 " + current + " / " + total;
+  }
+
+  // 👉 Farben reset
+  el.classList.remove("progress-low","progress-mid","progress-high");
+
+  if(pr < 40){
+    el.classList.add("progress-low");
+  } else if(pr < 80){
+    el.classList.add("progress-mid");
+  } else {
+    el.classList.add("progress-high");
+  }
+
+  // 👉 Animation
+  el.classList.remove("pop");
+  void el.offsetWidth;
+  el.classList.add("pop");
+}
+
+
+function konfettiAusRüssel(){
+
+  const elefant = document.getElementById("jubelElefant");
+  const rect = elefant.getBoundingClientRect();
+
+const startX = rect.left + 60; // andere Seite wegen Spiegelung
+  const startY = rect.top + 80;
+
+  for(let i = 0; i < 40; i++){
+
+    let k = document.createElement("div");
+
+    k.style.position = "fixed";
+    k.style.left = startX + "px";
+    k.style.top = startY + "px";
+
+    k.style.width = "8px";
+
+
+    k.style.height = "8px";
+    k.style.background = `hsl(${Math.random()*360},100%,50%)`;
+    k.style.borderRadius = "50%";
+    k.style.zIndex = "10001";
+
+    document.body.appendChild(k);
+
+let x = (Math.random() - 0.5) * 200;
+    let y = Math.random() * 300;
+
+    k.animate([
+      { transform: "translate(0,0)", opacity: 1 },
+      { transform: `translate(${x}px, ${y}px)`, opacity: 0 }
+    ], {
+      duration: 1200 + Math.random()*500,
+      easing: "ease-out"
+    });
+
+    setTimeout(()=>k.remove(),1500);
+  }
+}
+
+function jubelChoreo(){
+  positioniereElefant(); // 🔥 NEU
+
+  const elefant = document.getElementById("jubelElefant");
+  const glow = document.getElementById("elefantGlow");
+
+  elefant.classList.add("elefant-show");
+  glow.classList.add("glow-active");
+
+  setTimeout(()=>{
+    elefant.classList.add("elefant-animate");
+    elefant.classList.add("elefant-blink");
+  }, 200);
+
+  let interval = setInterval(konfettiAusRüssel, 300);
+
+playSound("richtig");
+
+
+
+  setTimeout(()=>{
+    clearInterval(interval);
+
+    elefant.classList.remove("elefant-show");
+    elefant.classList.remove("elefant-animate");
+    elefant.classList.remove("elefant-blink");
+    glow.classList.remove("glow-active");
+  }, 4000);
+}
+
+function positioniereElefant(){
+
+  const box = document.querySelector(".start-box") 
+           || document.getElementById("gameArea");
+
+  const elefant = document.getElementById("jubelElefant");
+
+  if(!box || !elefant) return;
+
+  const rect = box.getBoundingClientRect();
+
+  // 👉 rechts neben Box
+  const x = rect.right + 1300;
+
+  elefant.style.left = x + "px";
+}
+
+window.jubelChoreo = jubelChoreo;
+
+window.addEventListener("resize", positioniereElefant);
+window.addEventListener("load", positioniereElefant);
