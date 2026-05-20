@@ -381,18 +381,27 @@ h1{
 
 .equationRow{
 
-    display:flex;
+    position:relative;
 
-    justify-content:center;
+    display:flex;
 
     align-items:center;
 
-    gap:40px;
+    justify-content:flex-end;
 
     margin-bottom:20px;
+
+    min-height:90px;
 }
 
+.equationCenter{
 
+    position:absolute;
+
+    left:50%;
+
+    transform:translateX(-50%);
+}
 
 .inlineCommandBox{
 
@@ -409,12 +418,20 @@ h1{
 
     border-radius:18px;
 
-    width:300px;
-    align-self:center;
-   position:relative;
+    width:260px;
+
+    height:72px;
+
+    position:relative;
+
+    left:-40px;
+
     top:-8px;
-font-size: 48px;
-font-weight:bold;
+
+    font-size:48px;
+
+    font-weight:bold;
+    color: #2563eb;
 
 }
 
@@ -447,7 +464,7 @@ transform:translateX(380px);
 
 .inlineCommandInput{
 
-    width:220px;
+    width:200px;
 
     background:transparent;
 
@@ -455,40 +472,33 @@ transform:translateX(380px);
 
     outline:none;
 
-    color:#1e293b;
+    color:#2563eb;
 
     font-size:26px;
 
+    font-weight:700;
 }
-
 .equationLine{
 
-    display:grid;
+    display:flex;
 
-    grid-template-columns:
-        320px
-        60px
-        320px;
+    justify-content:center;
 
     align-items:center;
 
-    justify-content:center;
+    gap:28px;
 
     width:100%;
 
     margin:auto;
 }
 
-.eqLeft{
-
-    text-align:right;
-
-    font-size:34px;
-
-    font-weight:700;
-    color:#2563eb;
-
-
+.eqLeft,
+.eqEqual,
+.eqRight{
+    display:flex;
+    align-items:center;
+    justify-content:center;
 }
 
 .eqEqual{
@@ -503,16 +513,32 @@ transform:translateX(380px);
 
 }
 
+.eqLeft,
 .eqRight{
 
-    text-align:left;
+    width:320px;
 
     font-size:34px;
 
     font-weight:700;
+
     color:#2563eb;
+}
 
+.eqLeft{
+    justify-content:flex-end;
+}
 
+.eqRight{
+    justify-content:flex-start;
+}
+
+.inlineCommandInput::placeholder{
+
+    color:#3b82f6;
+
+    opacity:0.7;
+Font-style: italic;
 }
 
 </style>
